@@ -30,7 +30,7 @@ export function AppleTimerPicker({ isOpen, onClose, deviceName, onSetTimer }: Ap
     setValue: (v: number) => void,
     max: number,
     label: string,
-    ref: React.RefObject<HTMLDivElement>
+    ref: React.RefObject<HTMLDivElement | null>
   ) => {
     const items = Array.from({ length: max + 1 }, (_, i) => i);
 

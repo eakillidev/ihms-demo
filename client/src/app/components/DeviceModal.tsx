@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Edit2, Zap, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -212,7 +212,7 @@ export function DeviceModal({ isOpen, onClose, device }: DeviceModalProps) {
 
             <div className="mt-8">
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={getChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={getChartData() as any} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <XAxis
                     dataKey={getDataKey()}
                     axisLine={false}
@@ -234,7 +234,7 @@ export function DeviceModal({ isOpen, onClose, device }: DeviceModalProps) {
                       fontSize: "14px",
                       padding: "12px",
                     }}
-                    formatter={(value: number) => [`${value} kWh`, "Usage"]}
+                    formatter={(value) => [`${value} kWh`, "Usage"]}
                   />
                   <Bar dataKey="usage" fill="#10b981" radius={[8, 8, 0, 0]} />
                 </BarChart>
