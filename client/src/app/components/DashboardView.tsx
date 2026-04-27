@@ -5,98 +5,47 @@ import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { showLargeNotification } from "./LargeNotification";
 import { useState, useEffect } from "react";
 import { Zap, Plus } from "lucide-react";
-
-type DeviceType = "tv" | "gaming" | "stove" | "washer" | "dryer" | "refrigerator" | "microwave" | "lamp" | "computer" | "charger" | "router" | "fan";
-
-interface Device {
-  id: string;
-  name: string;
-  type: DeviceType;
-  status: "on" | "off";
-  power: number;
-  hasWifi: boolean;
-  hasAlert?: boolean;
-  isHighUsage?: boolean;
-  gamingTimer?: number;
-  customTimer?: number;
-  runtime?: number;
-}
-
-const initialDevices: Device[] = [
-  {
-    id: "1",
-    name: "Living Room TV",
-    type: "tv",
-    status: "on",
-    power: 120,
-    hasWifi: true,
-    isHighUsage: false,
-    runtime: 3240,
-  },
-  {
-    id: "2",
-    name: "Gaming Console",
-    type: "gaming",
-    status: "on",
-    power: 165,
-    hasWifi: true,
-    isHighUsage: false,
-    gamingTimer: 900,
-    runtime: 7845,
-  },
-  {
-    id: "3",
-    name: "Kitchen Stove",
-    type: "stove",
-    status: "off",
-    power: 0,
-    hasWifi: true,
-    isHighUsage: false,
-    runtime: 0,
-  },
-  {
-    id: "4",
-    name: "Washer",
-    type: "washer",
-    status: "on",
-    power: 450,
-    hasWifi: true,
-    isHighUsage: false,
-    runtime: 1620,
-  },
-  {
-    id: "5",
-    name: "Bedroom TV",
-    type: "tv",
-    status: "off",
-    power: 0,
-    hasWifi: true,
-    isHighUsage: false,
-    runtime: 0,
-  },
-  {
-    id: "6",
-    name: "Office Monitor",
-    type: "tv",
-    status: "off",
-    power: 0,
-    hasWifi: true,
-    isHighUsage: false,
-    runtime: 0,
-  },
-];
+import { getDevices, initialDevices, resetDevices, saveDevices } from "../mockDatabase";
+import type { Device } from "../mockDatabase";
+import { deleteDeviceOnApi, fetchDevices, updateDeviceOnApi } from "../deviceApi";
 
 interface DashboardViewProps {
   onNavigate?: (view: string) => void;
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
+  const [devices, setDevices] = useState<Device[]>(() => getDevices());
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [timerDialogOpen, setTimerDialogOpen] = useState(false);
   const [deviceForTimer, setDeviceForTimer] = useState<Device | null>(null);
+
+  const updateDevices = (updater: (currentDevices: Device[]) => Device[]) => {
+    setDevices((currentDevices) => {
+      const updatedDevices = updater(currentDevices);
+      saveDevices(updatedDevices);
+      return updatedDevices;
+    });
+  };
+
+  const syncDeviceUpdate = (id: string, updates: Partial<Device>) => {
+    updateDeviceOnApi(id, updates).catch((error) => {
+      console.warn("API unavailable, kept device update locally:", error);
+    });
+  };
+
+  useEffect(() => {
+    fetchDevices()
+      .then((apiDevices) => {
+        setDevices(apiDevices);
+        saveDevices(apiDevices);
+      })
+      .catch((error) => {
+        console.warn("API unavailable, using local demo devices:", error);
+        setDevices(getDevices());
+      });
+  }, []);
 
   const handleDeleteDevice = (device: Device) => {
     setDeviceToDelete(device);
@@ -105,7 +54,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
 
   const confirmDelete = () => {
     if (deviceToDelete) {
-      setDevices((prev) => prev.filter((d) => d.id !== deviceToDelete.id));
+      updateDevices((prev) => prev.filter((d) => d.id !== deviceToDelete.id));
+      deleteDeviceOnApi(deviceToDelete.id).catch((error) => {
+        console.warn("API unavailable, deleted device locally:", error);
+      });
       showLargeNotification("info", "Device Removed", `${deviceToDelete.name} has been deleted`);
       setDeleteDialogOpen(false);
       setDeviceToDelete(null);
@@ -119,11 +71,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
 
   const confirmSetTimer = (totalSeconds: number) => {
     if (deviceForTimer) {
-      setDevices((prev) =>
+      updateDevices((prev) =>
         prev.map((d) =>
           d.id === deviceForTimer.id ? { ...d, customTimer: totalSeconds } : d
         )
       );
+      syncDeviceUpdate(deviceForTimer.id, { customTimer: totalSeconds });
 
       const hours = Math.floor(totalSeconds / 3600);
       const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -144,7 +97,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setDevices((prev) =>
+      updateDevices((prev) =>
         prev.map((device) => {
           let updatedDevice = { ...device };
 
@@ -177,13 +130,17 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
       const activeDevices = devices.filter((d) => d.status === "on" && d.power > 0);
       if (activeDevices.length > 0) {
         const randomDevice = activeDevices[Math.floor(Math.random() * activeDevices.length)];
-        setDevices((prev) =>
+        updateDevices((prev) =>
           prev.map((d) =>
             d.id === randomDevice.id
               ? { ...d, power: d.power * 10, isHighUsage: true }
               : d
           )
         );
+        syncDeviceUpdate(randomDevice.id, {
+          power: randomDevice.power * 10,
+          isHighUsage: true,
+        });
         showLargeNotification(
           "error",
           "⚡ High Energy Usage Detected!",
@@ -196,11 +153,12 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
       const activeDevices = devices.filter((d) => d.status === "on");
       if (activeDevices.length > 0) {
         const randomDevice = activeDevices[Math.floor(Math.random() * activeDevices.length)];
-        setDevices((prev) =>
+        updateDevices((prev) =>
           prev.map((d) =>
             d.id === randomDevice.id ? { ...d, hasAlert: true } : d
           )
         );
+        syncDeviceUpdate(randomDevice.id, { hasAlert: true });
         showLargeNotification(
           "warning",
           "⚠️ Device Running Too Long",
@@ -226,13 +184,18 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
       if (offDevices.length > 0) {
         const randomDevice = offDevices[Math.floor(Math.random() * offDevices.length)];
         const basePower = randomDevice.type === "washer" ? 450 : randomDevice.type === "gaming" ? 165 : 120;
-        setDevices((prev) =>
+        updateDevices((prev) =>
           prev.map((d) =>
             d.id === randomDevice.id
               ? { ...d, status: "on", power: basePower, runtime: 0 }
               : d
           )
         );
+        syncDeviceUpdate(randomDevice.id, {
+          status: "on",
+          power: basePower,
+          runtime: 0,
+        });
         showLargeNotification(
           "success",
           "📺 Device Has Just Turned On",
@@ -242,12 +205,20 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
     };
 
     const handleResetSimulation = () => {
-      setDevices(initialDevices);
+      setDevices(resetDevices());
+      initialDevices.forEach((device) => syncDeviceUpdate(device.id, device));
+      devices
+        .filter((device) => !initialDevices.some((initialDevice) => initialDevice.id === device.id))
+        .forEach((device) => {
+          deleteDeviceOnApi(device.id).catch((error) => {
+            console.warn("API unavailable, reset kept local demo data:", error);
+          });
+        });
       showLargeNotification("info", "🔄 Simulation Reset", "All devices returned to default state");
     };
 
     const handleKillswitch = () => {
-      setDevices((prev) =>
+      updateDevices((prev) =>
         prev.map((d) => ({
           ...d,
           status: "off",
@@ -258,6 +229,16 @@ export function DashboardView({ onNavigate }: DashboardViewProps = {}) {
           runtime: 0,
         }))
       );
+      devices.forEach((device) => {
+        syncDeviceUpdate(device.id, {
+          status: "off",
+          power: 0,
+          isHighUsage: false,
+          hasAlert: false,
+          customTimer: 0,
+          runtime: 0,
+        });
+      });
       showLargeNotification(
         "error",
         "🚨 Emergency Shutoff Activated",

@@ -17,6 +17,10 @@ import {
   Fan
 } from "lucide-react";
 import { useState } from "react";
+import { createDevice, addDevice, saveDevices, getDevices } from "../mockDatabase";
+import type { DeviceType } from "../mockDatabase";
+import { showLargeNotification } from "./LargeNotification";
+import { createDeviceOnApi } from "../deviceApi";
 
 interface AddDeviceViewProps {
   onDeviceAdded: () => void;
@@ -31,8 +35,21 @@ export function AddDeviceView({ onDeviceAdded }: AddDeviceViewProps) {
     e.preventDefault();
     setIsPairing(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      const name = deviceName.trim();
+      const type = deviceType as DeviceType;
+      let newDevice = createDevice(name, type);
+
+      try {
+        newDevice = await createDeviceOnApi(newDevice);
+        saveDevices([...getDevices().filter((device) => device.id !== newDevice.id), newDevice]);
+      } catch (error) {
+        console.warn("API unavailable, saving device locally:", error);
+        newDevice = addDevice(name, type);
+      }
+
       setIsPairing(false);
+      showLargeNotification("success", "Device Added", `${newDevice.name} is ready to monitor`);
       onDeviceAdded();
     }, 2000);
   };

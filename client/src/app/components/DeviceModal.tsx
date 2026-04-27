@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Edit2, Zap, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
+import type { EnergyUsageHistory } from "../mockDatabase";
 
 interface DeviceModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface DeviceModalProps {
     power: number;
     isHighUsage?: boolean;
     runtime?: number;
+    energyHistory?: EnergyUsageHistory;
   };
 }
 
@@ -68,7 +70,7 @@ export function DeviceModal({ isOpen, onClose, device }: DeviceModalProps) {
   const [timeRange, setTimeRange] = useState("week");
   const [liveRuntime, setLiveRuntime] = useState(device.runtime || 0);
 
-  const deviceData = generateDeviceData(device.id, device.type);
+  const deviceData = device.energyHistory || generateDeviceData(device.id, device.type);
 
   useEffect(() => {
     setLiveRuntime(device.runtime || 0);
